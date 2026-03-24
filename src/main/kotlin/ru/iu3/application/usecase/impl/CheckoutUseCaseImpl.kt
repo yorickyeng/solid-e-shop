@@ -4,6 +4,7 @@ import ru.iu3.application.generator.IdGenerator
 import ru.iu3.application.usecase.CheckoutUseCase
 import ru.iu3.domain.exception.EmptyCartException
 import ru.iu3.domain.model.Order
+import ru.iu3.domain.observer.OrderEventPublisher
 import ru.iu3.domain.payment.PaymentStrategy
 import ru.iu3.domain.repository.CartRepository
 import ru.iu3.domain.repository.OrderRepository
@@ -12,6 +13,7 @@ internal class CheckoutUseCaseImpl(
     private val cartRepository: CartRepository,
     private val orderRepository: OrderRepository,
     private val idGenerator: IdGenerator,
+    private val eventPublisher: OrderEventPublisher,
 ) : CheckoutUseCase {
 
     override fun invoke(userId: String, strategy: PaymentStrategy): Order {
@@ -33,6 +35,7 @@ internal class CheckoutUseCaseImpl(
         )
 
         orderRepository.save(order)
+        eventPublisher.notifyOrderCreated(order)
         cartRepository.clear()
 
         return order

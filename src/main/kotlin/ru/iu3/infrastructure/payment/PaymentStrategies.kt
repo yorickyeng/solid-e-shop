@@ -1,5 +1,6 @@
 package ru.iu3.infrastructure.payment
 
+import ru.iu3.domain.exception.InsufficientBonusesException
 import ru.iu3.domain.exception.InvalidAmountException
 import ru.iu3.domain.model.OrderStatus
 import ru.iu3.domain.payment.PaymentStrategy
@@ -32,7 +33,7 @@ internal class BonusPaymentStrategy(
 
     override fun pay(price: Double): OrderStatus {
         if (price <= 0) throw InvalidAmountException()
-        if (price > availableBonuses) return OrderStatus.ERROR
+        if (price > availableBonuses) throw InsufficientBonusesException()
         return OrderStatus.SUCCESS
     }
 }

@@ -2,10 +2,13 @@ package ru.iu3.di
 
 import ru.iu3.application.generator.IdGenerator
 import ru.iu3.application.usecase.impl.*
+import ru.iu3.domain.observer.OrderEventPublisher
 import ru.iu3.domain.repository.CartRepository
 import ru.iu3.domain.repository.OrderRepository
 import ru.iu3.domain.repository.ProductRepository
 import ru.iu3.infrastructure.generator.UuidGenerator
+import ru.iu3.infrastructure.observer.EmailOrderObserver
+import ru.iu3.infrastructure.observer.SmsOrderObserver
 import ru.iu3.infrastructure.payment.BonusPaymentStrategy
 import ru.iu3.infrastructure.payment.CardPaymentStrategy
 import ru.iu3.infrastructure.payment.CashPaymentStrategy
@@ -23,12 +26,17 @@ internal object AppFactory {
         val productRepository: ProductRepository = ProductRepositoryImpl(products)
         val cartRepository: CartRepository = CartRepositoryImpl()
         val orderRepository: OrderRepository = OrderRepositoryImpl()
+
+        val orderEventPublisher = OrderEventPublisher()
         val idGenerator: IdGenerator = UuidGenerator()
         val paymentStrategies = listOf(
             CardPaymentStrategy(),
             CashPaymentStrategy(),
             BonusPaymentStrategy(),
         )
+
+        orderEventPublisher.subscribe(EmailOrderObserver())
+        orderEventPublisher.subscribe(SmsOrderObserver())
 
         return ConsoleDependencies(
             getAllProducts = GetAllProductsUseCaseImpl(productRepository),
@@ -37,7 +45,7 @@ internal object AppFactory {
             removeFromCart = RemoveProductFromCartUseCaseImpl(productRepository, cartRepository),
             getCart = GetCartUseCaseImpl(cartRepository),
             clearCart = ClearCartUseCaseImpl(cartRepository),
-            checkout = CheckoutUseCaseImpl(cartRepository, orderRepository, idGenerator),
+            checkout = CheckoutUseCaseImpl(cartRepository, orderRepository, idGenerator, orderEventPublisher),
             getOrderHistory = GetOrderHistoryUseCaseImpl(orderRepository),
             paymentStrategies = paymentStrategies,
         )
