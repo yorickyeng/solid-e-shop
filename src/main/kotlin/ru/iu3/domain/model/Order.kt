@@ -5,6 +5,6 @@ internal data class Order(
     val userId: String,
     val status: OrderStatus,
     val totalPrice: Double,
-    val paymentMethod: PaymentMethod,
+    val paymentMethod: String,
     val items: List<CartItem>,
 )

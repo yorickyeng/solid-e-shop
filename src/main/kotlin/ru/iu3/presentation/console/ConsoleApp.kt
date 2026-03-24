@@ -3,8 +3,9 @@ package ru.iu3.presentation.console
 import ru.iu3.domain.exception.PaymentMethodNotFoundException
 import ru.iu3.domain.exception.ShopException
 import ru.iu3.domain.model.Category
-import ru.iu3.domain.model.PaymentMethod
+import ru.iu3.domain.model.Product
 import ru.iu3.domain.model.ProductFilter
+import ru.iu3.domain.payment.PaymentStrategy
 
 internal class ConsoleApp(
     private val deps: ConsoleDependencies,
@@ -116,17 +117,13 @@ internal class ConsoleApp(
         println("items=${order.items.size}")
     }
 
-    private fun readPaymentStrategy(): ru.iu3.domain.payment.PaymentStrategy {
+    private fun readPaymentStrategy(): PaymentStrategy {
         println("Способы оплаты:")
-        PaymentMethod.entries.forEachIndexed { i, m -> println("${i + 1}) $m") }
-        val idx = readInt("Выберите способ оплаты: ") - 1
-        val method = PaymentMethod.entries.getOrNull(idx) ?: throw PaymentMethodNotFoundException()
-
-        return when (method) {
-            PaymentMethod.CARD -> ru.iu3.infrastructure.payment.CardPaymentStrategy()
-            PaymentMethod.CASH -> ru.iu3.infrastructure.payment.CashPaymentStrategy()
-            PaymentMethod.BONUS -> ru.iu3.infrastructure.payment.BonusPaymentStrategy(50000.0)
+        deps.paymentStrategies.forEachIndexed { i, strategy ->
+            println("${i + 1}) ${strategy.name}")
         }
+        val idx = readInt("Выберите способ оплаты: ") - 1
+        return deps.paymentStrategies.getOrNull(idx) ?: throw PaymentMethodNotFoundException()
     }
 
     private fun showOrderHistory() = handle {
@@ -152,7 +149,7 @@ internal class ConsoleApp(
         }
     }
 
-    private fun printProducts(products: List<ru.iu3.domain.model.Product>) {
+    private fun printProducts(products: List<Product>) {
         if (products.isEmpty()) {
             println("Ничего не найдено")
             return

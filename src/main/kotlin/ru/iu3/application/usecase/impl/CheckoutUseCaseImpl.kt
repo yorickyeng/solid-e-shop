@@ -28,7 +28,7 @@ internal class CheckoutUseCaseImpl(
             userId = userId,
             status = status,
             totalPrice = totalPrice,
-            paymentMethod = strategy.method,
+            paymentMethod = strategy.name,
             items = items,
         )
 

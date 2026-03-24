@@ -6,6 +6,9 @@ import ru.iu3.domain.repository.CartRepository
 import ru.iu3.domain.repository.OrderRepository
 import ru.iu3.domain.repository.ProductRepository
 import ru.iu3.infrastructure.generator.UuidGenerator
+import ru.iu3.infrastructure.payment.BonusPaymentStrategy
+import ru.iu3.infrastructure.payment.CardPaymentStrategy
+import ru.iu3.infrastructure.payment.CashPaymentStrategy
 import ru.iu3.infrastructure.repository.CartRepositoryImpl
 import ru.iu3.infrastructure.repository.OrderRepositoryImpl
 import ru.iu3.infrastructure.repository.ProductRepositoryImpl
@@ -21,6 +24,11 @@ internal object AppFactory {
         val cartRepository: CartRepository = CartRepositoryImpl()
         val orderRepository: OrderRepository = OrderRepositoryImpl()
         val idGenerator: IdGenerator = UuidGenerator()
+        val paymentStrategies = listOf(
+            CardPaymentStrategy(),
+            CashPaymentStrategy(),
+            BonusPaymentStrategy(),
+        )
 
         return ConsoleDependencies(
             getAllProducts = GetAllProductsUseCaseImpl(productRepository),
@@ -31,6 +39,7 @@ internal object AppFactory {
             clearCart = ClearCartUseCaseImpl(cartRepository),
             checkout = CheckoutUseCaseImpl(cartRepository, orderRepository, idGenerator),
             getOrderHistory = GetOrderHistoryUseCaseImpl(orderRepository),
+            paymentStrategies = paymentStrategies,
         )
     }
 }

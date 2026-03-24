@@ -1,9 +1,10 @@
 package ru.iu3.domain.payment
 
 import ru.iu3.domain.model.OrderStatus
-import ru.iu3.domain.model.PaymentMethod
 
 internal interface PaymentStrategy {
-    val method: PaymentMethod
+
+    val name: String
+
     fun pay(price: Double): OrderStatus
 }

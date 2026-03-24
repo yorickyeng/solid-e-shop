@@ -2,11 +2,11 @@ package ru.iu3.infrastructure.payment
 
 import ru.iu3.domain.exception.InvalidAmountException
 import ru.iu3.domain.model.OrderStatus
-import ru.iu3.domain.model.PaymentMethod
 import ru.iu3.domain.payment.PaymentStrategy
 
 internal class CardPaymentStrategy : PaymentStrategy {
-    override val method: PaymentMethod = PaymentMethod.CARD
+
+    override val name: String = "Карта"
 
     override fun pay(price: Double): OrderStatus {
         if (price <= 0) throw InvalidAmountException()
@@ -15,7 +15,8 @@ internal class CardPaymentStrategy : PaymentStrategy {
 }
 
 internal class CashPaymentStrategy : PaymentStrategy {
-    override val method: PaymentMethod = PaymentMethod.CASH
+
+    override val name: String = "Наличные"
 
     override fun pay(price: Double): OrderStatus {
         if (price <= 0) throw InvalidAmountException()
@@ -24,9 +25,10 @@ internal class CashPaymentStrategy : PaymentStrategy {
 }
 
 internal class BonusPaymentStrategy(
-    private val availableBonuses: Double
+    private val availableBonuses: Double = 50000.0,
 ) : PaymentStrategy {
-    override val method: PaymentMethod = PaymentMethod.BONUS
+
+    override val name: String = "Бонусы"
 
     override fun pay(price: Double): OrderStatus {
         if (price <= 0) throw InvalidAmountException()
