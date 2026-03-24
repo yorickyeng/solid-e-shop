@@ -3,7 +3,7 @@ package ru.iu3.presentation.console
 import ru.iu3.domain.exception.PaymentMethodNotFoundException
 import ru.iu3.domain.exception.ShopException
 import ru.iu3.domain.model.Category
-import ru.iu3.domain.model.PaymentMethod
+import ru.iu3.domain.model.Product
 import ru.iu3.domain.model.ProductFilter
 
 internal class ConsoleApp(
@@ -105,8 +105,8 @@ internal class ConsoleApp(
     }
 
     private fun checkout() = handle {
-        val method = readPaymentMethod()
-        val order = deps.checkout(userId, method)
+        val strategyName = readPaymentStrategyName()
+        val order = deps.checkout(userId, strategyName)
 
         println("Заказ оформлен:")
         println("id=${order.id}")
@@ -114,6 +114,18 @@ internal class ConsoleApp(
         println("payment=${order.paymentMethod}")
         println("total=${formatPrice(order.totalPrice)}")
         println("items=${order.items.size}")
+    }
+
+    private fun readPaymentStrategyName(): String {
+        val strategies = deps.paymentStrategyFactory.getAll()
+
+        println("Способы оплаты:")
+        strategies.forEachIndexed { i, strategy ->
+            println("${i + 1}) ${strategy.name}")
+        }
+
+        val idx = readInt("Выберите способ оплаты: ") - 1
+        return strategies.getOrNull(idx)?.name ?: throw PaymentMethodNotFoundException()
     }
 
     private fun showOrderHistory() = handle {
@@ -139,7 +151,7 @@ internal class ConsoleApp(
         }
     }
 
-    private fun printProducts(products: List<ru.iu3.domain.model.Product>) {
+    private fun printProducts(products: List<Product>) {
         if (products.isEmpty()) {
             println("Ничего не найдено")
             return
@@ -154,13 +166,6 @@ internal class ConsoleApp(
         Category.entries.forEachIndexed { i, c -> println("${i + 1}) $c") }
         val idx = readInt("Выберите категорию: ") - 1
         return Category.entries.getOrNull(idx) ?: Category.OTHER
-    }
-
-    private fun readPaymentMethod(): PaymentMethod {
-        println("Способы оплаты:")
-        PaymentMethod.entries.forEachIndexed { i, m -> println("${i + 1}) $m") }
-        val idx = readInt("Выберите способ оплаты: ") - 1
-        return PaymentMethod.entries.getOrNull(idx) ?: throw PaymentMethodNotFoundException()
     }
 
     private fun readString(prompt: String): String {
