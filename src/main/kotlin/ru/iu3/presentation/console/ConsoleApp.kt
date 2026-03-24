@@ -105,8 +105,8 @@ internal class ConsoleApp(
     }
 
     private fun checkout() = handle {
-        val method = readPaymentMethod()
-        val order = deps.checkout(userId, method)
+        val strategy = readPaymentStrategy()
+        val order = deps.checkout(userId, strategy)
 
         println("Заказ оформлен:")
         println("id=${order.id}")
@@ -114,6 +114,19 @@ internal class ConsoleApp(
         println("payment=${order.paymentMethod}")
         println("total=${formatPrice(order.totalPrice)}")
         println("items=${order.items.size}")
+    }
+
+    private fun readPaymentStrategy(): ru.iu3.domain.payment.PaymentStrategy {
+        println("Способы оплаты:")
+        PaymentMethod.entries.forEachIndexed { i, m -> println("${i + 1}) $m") }
+        val idx = readInt("Выберите способ оплаты: ") - 1
+        val method = PaymentMethod.entries.getOrNull(idx) ?: throw PaymentMethodNotFoundException()
+
+        return when (method) {
+            PaymentMethod.CARD -> ru.iu3.infrastructure.payment.CardPaymentStrategy()
+            PaymentMethod.CASH -> ru.iu3.infrastructure.payment.CashPaymentStrategy()
+            PaymentMethod.BONUS -> ru.iu3.infrastructure.payment.BonusPaymentStrategy(50000.0)
+        }
     }
 
     private fun showOrderHistory() = handle {
@@ -154,13 +167,6 @@ internal class ConsoleApp(
         Category.entries.forEachIndexed { i, c -> println("${i + 1}) $c") }
         val idx = readInt("Выберите категорию: ") - 1
         return Category.entries.getOrNull(idx) ?: Category.OTHER
-    }
-
-    private fun readPaymentMethod(): PaymentMethod {
-        println("Способы оплаты:")
-        PaymentMethod.entries.forEachIndexed { i, m -> println("${i + 1}) $m") }
-        val idx = readInt("Выберите способ оплаты: ") - 1
-        return PaymentMethod.entries.getOrNull(idx) ?: throw PaymentMethodNotFoundException()
     }
 
     private fun readString(prompt: String): String {
