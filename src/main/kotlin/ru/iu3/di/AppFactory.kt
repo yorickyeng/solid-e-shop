@@ -6,12 +6,13 @@ import ru.iu3.domain.observer.OrderEventPublisher
 import ru.iu3.domain.repository.CartRepository
 import ru.iu3.domain.repository.OrderRepository
 import ru.iu3.domain.repository.ProductRepository
+import ru.iu3.infrastructure.factory.PaymentStrategyFactoryImpl
 import ru.iu3.infrastructure.generator.UuidGenerator
 import ru.iu3.infrastructure.observer.EmailOrderObserver
 import ru.iu3.infrastructure.observer.SmsOrderObserver
-import ru.iu3.infrastructure.payment.BonusPaymentStrategy
-import ru.iu3.infrastructure.payment.CardPaymentStrategy
-import ru.iu3.infrastructure.payment.CashPaymentStrategy
+import ru.iu3.infrastructure.strategy.BonusPaymentStrategy
+import ru.iu3.infrastructure.strategy.CardPaymentStrategy
+import ru.iu3.infrastructure.strategy.CashPaymentStrategy
 import ru.iu3.infrastructure.repository.CartRepositoryImpl
 import ru.iu3.infrastructure.repository.OrderRepositoryImpl
 import ru.iu3.infrastructure.repository.ProductRepositoryImpl
@@ -27,13 +28,10 @@ internal object AppFactory {
         val cartRepository: CartRepository = CartRepositoryImpl()
         val orderRepository: OrderRepository = OrderRepositoryImpl()
 
-        val orderEventPublisher = OrderEventPublisher()
         val idGenerator: IdGenerator = UuidGenerator()
-        val paymentStrategies = listOf(
-            CardPaymentStrategy(),
-            CashPaymentStrategy(),
-            BonusPaymentStrategy(),
-        )
+        val paymentStrategies = listOf(CardPaymentStrategy(), CashPaymentStrategy(), BonusPaymentStrategy())
+        val paymentStrategyFactory = PaymentStrategyFactoryImpl(paymentStrategies)
+        val orderEventPublisher = OrderEventPublisher()
 
         orderEventPublisher.subscribe(EmailOrderObserver())
         orderEventPublisher.subscribe(SmsOrderObserver())
@@ -45,9 +43,15 @@ internal object AppFactory {
             removeFromCart = RemoveProductFromCartUseCaseImpl(productRepository, cartRepository),
             getCart = GetCartUseCaseImpl(cartRepository),
             clearCart = ClearCartUseCaseImpl(cartRepository),
-            checkout = CheckoutUseCaseImpl(cartRepository, orderRepository, idGenerator, orderEventPublisher),
+            checkout = CheckoutUseCaseImpl(
+                cartRepository = cartRepository,
+                orderRepository = orderRepository,
+                idGenerator = idGenerator,
+                eventPublisher = orderEventPublisher,
+                strategyFactory = paymentStrategyFactory
+            ),
             getOrderHistory = GetOrderHistoryUseCaseImpl(orderRepository),
-            paymentStrategies = paymentStrategies,
+            paymentStrategyFactory = paymentStrategyFactory,
         )
     }
 }

@@ -1,7 +1,7 @@
 package ru.iu3.presentation.console
 
 import ru.iu3.application.usecase.*
-import ru.iu3.domain.payment.PaymentStrategy
+import ru.iu3.domain.factory.PaymentStrategyFactory
 
 internal data class ConsoleDependencies(
     val getAllProducts: GetAllProductsUseCase,
@@ -12,5 +12,5 @@ internal data class ConsoleDependencies(
     val clearCart: ClearCartUseCase,
     val checkout: CheckoutUseCase,
     val getOrderHistory: GetOrderHistoryUseCase,
-    val paymentStrategies: List<PaymentStrategy>
+    val paymentStrategyFactory: PaymentStrategyFactory,
 )

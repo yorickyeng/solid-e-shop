@@ -1,4 +1,4 @@
-package ru.iu3.domain.payment
+package ru.iu3.domain.strategy
 
 import ru.iu3.domain.model.OrderStatus
 

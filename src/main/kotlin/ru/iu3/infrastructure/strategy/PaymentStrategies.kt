@@ -1,13 +1,10 @@
-package ru.iu3.infrastructure.payment
+package ru.iu3.infrastructure.strategy
 
 import ru.iu3.domain.exception.InsufficientBonusesException
 import ru.iu3.domain.exception.InvalidAmountException
 import ru.iu3.domain.model.OrderStatus
-import ru.iu3.domain.payment.PaymentStrategy
 
-internal class CardPaymentStrategy : PaymentStrategy {
-
-    override val name: String = "Карта"
+internal abstract class PaymentStrategy : ru.iu3.domain.strategy.PaymentStrategy {
 
     override fun pay(price: Double): OrderStatus {
         if (price <= 0) throw InvalidAmountException()
@@ -15,25 +12,24 @@ internal class CardPaymentStrategy : PaymentStrategy {
     }
 }
 
-internal class CashPaymentStrategy : PaymentStrategy {
+internal class CardPaymentStrategy : PaymentStrategy() {
+
+    override val name: String = "Карта"
+}
+
+internal class CashPaymentStrategy : PaymentStrategy() {
 
     override val name: String = "Наличные"
-
-    override fun pay(price: Double): OrderStatus {
-        if (price <= 0) throw InvalidAmountException()
-        return OrderStatus.SUCCESS
-    }
 }
 
 internal class BonusPaymentStrategy(
     private val availableBonuses: Double = 50000.0,
-) : PaymentStrategy {
+) : PaymentStrategy() {
 
     override val name: String = "Бонусы"
 
     override fun pay(price: Double): OrderStatus {
-        if (price <= 0) throw InvalidAmountException()
         if (price > availableBonuses) throw InsufficientBonusesException()
-        return OrderStatus.SUCCESS
+        return super.pay(price)
     }
 }

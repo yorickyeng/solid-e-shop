@@ -5,7 +5,6 @@ import ru.iu3.domain.exception.ShopException
 import ru.iu3.domain.model.Category
 import ru.iu3.domain.model.Product
 import ru.iu3.domain.model.ProductFilter
-import ru.iu3.domain.payment.PaymentStrategy
 
 internal class ConsoleApp(
     private val deps: ConsoleDependencies,
@@ -106,8 +105,8 @@ internal class ConsoleApp(
     }
 
     private fun checkout() = handle {
-        val strategy = readPaymentStrategy()
-        val order = deps.checkout(userId, strategy)
+        val strategyName = readPaymentStrategyName()
+        val order = deps.checkout(userId, strategyName)
 
         println("Заказ оформлен:")
         println("id=${order.id}")
@@ -117,13 +116,16 @@ internal class ConsoleApp(
         println("items=${order.items.size}")
     }
 
-    private fun readPaymentStrategy(): PaymentStrategy {
+    private fun readPaymentStrategyName(): String {
+        val strategies = deps.paymentStrategyFactory.getAll()
+
         println("Способы оплаты:")
-        deps.paymentStrategies.forEachIndexed { i, strategy ->
+        strategies.forEachIndexed { i, strategy ->
             println("${i + 1}) ${strategy.name}")
         }
+
         val idx = readInt("Выберите способ оплаты: ") - 1
-        return deps.paymentStrategies.getOrNull(idx) ?: throw PaymentMethodNotFoundException()
+        return strategies.getOrNull(idx)?.name ?: throw PaymentMethodNotFoundException()
     }
 
     private fun showOrderHistory() = handle {

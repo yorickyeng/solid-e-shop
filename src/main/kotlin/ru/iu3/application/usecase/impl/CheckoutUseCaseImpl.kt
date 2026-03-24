@@ -3,9 +3,9 @@ package ru.iu3.application.usecase.impl
 import ru.iu3.application.generator.IdGenerator
 import ru.iu3.application.usecase.CheckoutUseCase
 import ru.iu3.domain.exception.EmptyCartException
+import ru.iu3.domain.factory.PaymentStrategyFactory
 import ru.iu3.domain.model.Order
 import ru.iu3.domain.observer.OrderEventPublisher
-import ru.iu3.domain.payment.PaymentStrategy
 import ru.iu3.domain.repository.CartRepository
 import ru.iu3.domain.repository.OrderRepository
 
@@ -14,12 +14,14 @@ internal class CheckoutUseCaseImpl(
     private val orderRepository: OrderRepository,
     private val idGenerator: IdGenerator,
     private val eventPublisher: OrderEventPublisher,
+    private val strategyFactory: PaymentStrategyFactory,
 ) : CheckoutUseCase {
 
-    override fun invoke(userId: String, strategy: PaymentStrategy): Order {
+    override fun invoke(userId: String, strategyName: String): Order {
         val cart = cartRepository.get()
         if (cart.isEmpty()) throw EmptyCartException()
 
+        val strategy = strategyFactory.getByTitle(strategyName)
         val items = cart.getItems()
         val totalPrice = cart.getTotalPrice()
 
