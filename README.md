@@ -1,146 +1,206 @@
-# Лабораторная работа №2 — Паттерны проектирования
+# Лабораторная работа №3 — Антипаттерны проектирования
 ## Дисциплина: «Моделирование и надежность систем»
 ### Вариант 14: Информационная система интернет‑магазина (консоль)
 
----
+## 🚨 Выявленные Антипаттерны
 
-## 1. Описание
-Консольная информационная система интернет‑магазина. Поддерживает:
+### 1. **God Class (Божественный класс)**
+Класс нарушает **Single Responsibility Principle (SRP)**, выполняя 7 различных ответственностей:
 
-- каталог товаров;
-- фильтрацию товаров (по категории, по цене);
-- корзину (добавление/удаление/просмотр/очистка);
-- оформление заказа (checkout) с выбором способа оплаты;
-- историю заказов пользователя.
+```
+┌─────────────────────────────────────────────────────────┐
+│          GodDiscountCalculator                          │
+├─────────────────────────────────────────────────────────┤
+│ 1. Хранение состояния расчёта (9 полей-переменных)      │
+│ 2. Получение данных из репозиториев                     │
+│ 3. Расчёт скидок по категориям товаров                  │
+│ 4. Расчёт объёмных скидок по порогу                     │
+│ 5. Расчёт налогов                                       │
+│ 6. Расчёт стоимости доставки                            │
+│ 7. Расчёт комиссий платежных методов                    │
+│ 8. Форматирование и вывод отчёта в консоль              │
+│ 9. Быстрая оценка стоимости (quickEstimate)             │
+│ 10. Экспорт в строку (exportToString)                   │
+└─────────────────────────────────────────────────────────┘
+```
 
-Ключевая цель — провести рефакторинг и внедрить классические **паттерны проектирования (GoF)** для повышения гибкости, расширяемости и поддерживаемости кода, при этом сохраняя соответствие принципам **Clean Architecture** и **SOLID**.
+### 2. **Feature Envy**
+Метод `calculateAndPrint` чрезмерно использует данные из `ProductRepository` и `CartRepository`, но логика принадлежит доменной области, а не презентации.
 
----
+### 3. **Primitive Obsession**
+Использование примитивных типов (`Double`, `String`) вместо доменных объектов:
+```kotlin
+private val TAX_RATE = 0.13                    // Должно быть Money/TaxRate
+private val DISCOUNT_THRESHOLD_1 = 5000.0      // Должно быть Money
+private val SHIPPING_BASE = 300.0              // Должно быть Money
+```
 
-## 2. Стек и технологии
-- **Kotlin**
-- Консольный ввод/вывод (`readln()`, `println`)
-- Хранение данных: **in-memory** реализации репозиториев (без БД)
+### 4. **Magic Numbers**
+Числовые литералы без пояснений:
+```kotlin
+private val TAX_RATE = 0.13           // Почему 13%?
+private val CARD_COMMISSION = 0.02    // Откуда 2%?
+private val WEIGHT_PER_ITEM = 0.5     // Почему 0.5 кг?
+```
 
----
+### 5. **Data Clump**
+Группы связанных полей, которые должны быть объектом:
+```kotlin
+// Эти 7 полей должны быть классом CalculationResult:
+private var subtotal = 0.0
+private var categoryDiscount = 0.0
+private var volumeDiscount = 0.0
+private var tax = 0.0
+private var shipping = 0.0
+private var commission = 0.0
+private var finalTotal = 0.0
+```
 
-## 3. Архитектура и слои
-Проект организован по идее “Clean Architecture / layered architecture”:
+### 6. **Temporal Coupling**
+Методы зависят от порядка вызова:
+```kotlin
+fun calculateAndPrint(paymentMethod: String) {  // Должен вызываться первым
+    // ... устанавливает все поля
+}
 
-### `domain`
-Содержит бизнес‑модель, контракты и интерфейсы паттернов:
-- `model`: `Product`, `Cart`, `Order`, `ProductFilter` и т.д.
-- `repository`: интерфейсы репозиториев (`ProductRepository`, `OrderRepository`, `CartRepository`).
-- `strategy`: интерфейс `PaymentStrategy` (Стратегия).
-- `factory`: интерфейс `PaymentStrategyFactory` (Фабрика).
-- `observer`: интерфейсы и издатель `OrderObserver`, `OrderEventPublisher` (Наблюдатель).
-- `exception`: иерархия доменных исключений.
+fun exportToString(): String {  // Требует предварительного вызова calculateAndPrint
+    return "SUBTOTAL:${subtotal};..."  // Использует поля, установленные выше
+}
+```
 
-> Domain не зависит ни от UI, ни от инфраструктуры.
+### 7. **Inappropriate Intimacy**
+Класс знает слишком много о внутренней структуре `CartItem` и `Product`:
+```kotlin
+val cartItems = cart.getItems().map { cartItem ->
+    val product = productMap[cartItem.product.id] ?: cartItem.product
+    Pair(product, cartItem.amount)  // Прямой доступ к внутренностям
+}
+```
 
-### `application`
-Сценарии использования (use-cases) и бизнес‑оркестрация:
-- `usecase`: интерфейсы и имплементации сценариев (`GetAllProductsUseCase`, `CheckoutUseCase` и др.). Сценарии оркестрируют работу фабрик, стратегий и паблишеров.
-- `generator`: `IdGenerator` (абстракция генерации id).
+### 8. **Switch Statements (When-выражения)**
+Длинные when-выражения, которые должны быть полиморфизмом:
+```kotlin
+val catDiscount = when (product.category) {
+    Category.SNOWBOARDS -> SNOWBOARDS_DISCOUNT
+    Category.BINDINGS -> BINDINGS_DISCOUNT
+    Category.BOOTS -> BOOTS_DISCOUNT
+    // ... 7 случаев
+}
+```
 
-### `infrastructure`
-Конкретные реализации интерфейсов domain/application:
-- `repository`: `ProductRepositoryImpl`, `OrderRepositoryImpl`, `CartRepositoryImpl`.
-- `strategy`: конкретные стратегии оплаты (`CardPaymentStrategy`, `CashPaymentStrategy`, `BonusPaymentStrategy`).
-- `factory`: реализация фабрики стратегий (`PaymentStrategyFactoryImpl`).
-- `observer`: конкретные слушатели событий (`EmailOrderObserver`, `SmsOrderObserver`).
-- `generator`: `UuidGenerator`.
-- `seed`: `StaticProducts` (статический каталог товаров).
+### 9. **Hardcoded Values**
+Жестко закодированные значения конфигурации:
+```kotlin
+private val SNOWBOARDS_DISCOUNT = 0.10
+private val BINDINGS_DISCOUNT = 0.05
+private val BOOTS_DISCOUNT = 0.07
+// ... должны быть в конфигурации
+```
 
-### `presentation.console`
-Консольный UI:
-- `ConsoleApp` — цикл меню, ввод/вывод + вызов use-case’ов. Ничего не знает о конкретных стратегиях.
-- `ConsoleDependencies` — DTO с зависимостями для UI.
+### 10. **Mixed Concerns (Смешение ответственностей)**
+Класс находится в пакете `presentation.console`, но содержит бизнес-логику:
+```
+presentation.console.GodDiscountCalculator
+    ├── Репозитории (domain layer)
+    ├── Бизнес-правила расчёта (domain layer)
+    └── Вывод в консоль (presentation layer)
+```
 
-### `di`
-Ручная сборка зависимостей (composition root):
-- `AppFactory` — собирает всё приложение: инициализирует стратегии, регистрирует их в фабрике, подписывает наблюдателей на события и связывает с use-case’ами.
+### 11. **Mutable State**
+Изменяемое состояние приводит к ошибкам:
+```kotlin
+private var subtotal = 0.0    // Может быть изменено
+private var tax = 0.0         // Зависит от порядка вызовов
+```
 
----
-
-## 4. Реализованные паттерны проектирования (GoF)
-
-В рамках лабораторной работы внедрены следующие паттерны:
-
-### 1. Strategy + Factory (Стратегия + Фабрика)
-- **Суть:** `PaymentStrategyFactory` предоставляет нужный объект-стратегию по строковому названию способа оплаты. Внутри возвращенного объекта (`PaymentStrategy`) инкапсулирован уникальный алгоритм оплаты.
-- **Где используется:** Процесс оформления заказа (`CheckoutUseCaseImpl`).
-- **Польза:** Код UseCase избавлен от конструкций `if/when` при выборе оплаты. При добавлении нового метода оплаты логика оформления заказа не меняется.
-
-### 2. Observer (Наблюдатель)
-- **Суть:** Механизм подписки для реагирования на доменные события.
-- **Где используется:** Уведомление систем после успешного оформления заказа. `OrderEventPublisher` рассылает событие, а независимые `EmailOrderObserver` и `SmsOrderObserver` его обрабатывают.
-- **Польза:** Изоляция побочных эффектов. `CheckoutUseCaseImpl` отвечает только за заказ и не содержит инфраструктурного кода для отправки SMS или Email (сохраняется принцип SRP).
-
-### 3. Repository (Репозиторий)
-- **Суть:** Классический архитектурный паттерн доступа к данным.
-- **Где используется:** Управление товарами, корзиной и заказами (`ProductRepository`, `CartRepository`, `OrderRepository`).
-- **Польза:** Отделяет бизнес-логику от деталей хранения данных в памяти.
-
----
-
-## 5. Запуск
-Запустить `Main.kt`:
-- `src/main/kotlin/ru/iu3/Main.kt`
-
-После запуска доступно меню:
-1) Показать все товары
-2) Фильтр товаров
-3) Добавить товар в корзину
-4) Удалить товар из корзины
-5) Показать корзину
-6) Очистить корзину
-7) Оформить заказ
-8) История заказов
-0) Выход
-
----
-
-## 6. Надежность и обработка ошибок
-В домене определена собственная иерархия исключений (`ShopException -> ValidationException / NotFoundException`). В `ConsoleApp` реализован единый обработчик `handle { ... }`, который перехватывает доменные ошибки и выводит понятные сообщения, а системные ошибки трактует как непредвиденные.
-
----
-
-## 7. SOLID — где и как соблюдается
-
-- **S (SRP):** Каждый класс сфокусирован на одной задаче. Уведомления вынесены в `Observer`, алгоритмы оплаты — в `Strategy`, логика работы корзины — в `Cart`.
-- **O (OCP):** Система расширяется добавлением новых классов без изменения старых. Новую оплату можно добавить, создав новый класс `PaymentStrategy` и зарегистрировав его в `AppFactory`.
-- **L (LSP):** Любая `PaymentStrategy` или `OrderObserver` может быть подставлена в UseCase без нарушения его логики, так как все они строго соблюдают контракты интерфейсов.
-- **I (ISP):** Интерфейсы узкоспециализированы (`PaymentStrategyFactory` умеет только выдавать стратегии, `CheckoutUseCase` — только оформлять заказ).
-- **D (DIP):** Слой Application зависит только от абстракций из Domain (интерфейсов), конкретные реализации инфраструктуры внедряются снаружи через `AppFactory`.
-
----
-
-## 8. Пример расширения системы (Демонстрация OCP)
-Задача: добавить способ оплаты "Криптовалюта".
-
-Шаги:
-1) Создать `CryptoPaymentStrategy`, реализующую интерфейс `PaymentStrategy`.
-2) При сборке в `AppFactory` добавить новый класс в список стратегий, передаваемый в `PaymentStrategyFactoryImpl`.
-
-**Результат:** Код `CheckoutUseCaseImpl` не меняется. Код `ConsoleApp` не меняется (меню оплаты строится динамически через запрос доступных стратегий у фабрики).
+### 12. **Poor Naming**
+- `GodDiscountCalculator` — имя само признаёт проблему
+- `calculateAndPrint` — нарушает Single Responsibility
+- `quickEstimate` — неясное назначение
 
 ---
 
-## 9. Как подготовиться к защите (чек-лист)
-1) Показать архитектурное разбиение по слоям: `presentation -> application -> domain <- infrastructure`, сборка в `di`.
-2) Обосновать внедренные паттерны:
-    - Показать связку **Strategy + Factory** в `CheckoutUseCaseImpl` (отсутствие `when`).
-    - Показать **Observer**, объяснить как `EmailOrderObserver` подписывается на события в `AppFactory`.
-3) Выполнить “нарушение принципа” SOLID для демонстрации:
-    - SRP: добавить `println("Отправка email")` прямо внутрь UseCase.
-    - OCP: добавить жесткий `if` в UseCase вместо вызова Стратегии.
-    - DIP: сделать `val factory = PaymentStrategyFactoryImpl(...)` прямо внутри UseCase.
+## 📊 Метрики класса
+
+| Метрика | Значение | Порог | Статус |
+|---------|----------|-------|--------|
+| Lines of Code (LOC) | 120 | < 50 | ❌ |
+| Number of Fields | 22 | < 10 | ❌ |
+| Number of Methods | 4 | < 5 | ⚠️ |
+| Coupling (CBO) | 2 репозитория + Category | < 3 | ⚠️ |
+| Responsibility Count | 7+ | < 3 | ❌ |
 
 ---
 
-## 10. Автор
+## 🛠️ Рекомендации по Рефакторингу
+
+### Стратегия разделения:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    После рефакторинга                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  DiscountCalculator (Domain Layer)                          │
+│  ├── calculateSubtotal(cart: Cart): Money                  │
+│  └── calculateDiscounts(cart: Cart): DiscountResult        │
+│                                                             │
+│  TaxCalculator (Domain Layer)                               │
+│  └── calculateTax(amount: Money): Money                    │
+│                                                             │
+│  ShippingCalculator (Domain Layer)                          │
+│  └── calculateShipping(cart: Cart): Money                  │
+│                                                             │
+│  PaymentCommissionStrategy (Domain Layer)                   │
+│  └── calculateCommission(amount: Money): Money             │
+│                                                             │
+│  DiscountPolicy (Domain Layer)                              │
+│  └── getCategoryDiscount(category: Category): Double       │
+│                                                             │
+│  ConsoleReportPrinter (Presentation Layer)                  │
+│  └── printReport(result: CalculationResult)                │
+│                                                             │
+│  CalculationResult (Value Object)                           │
+│  ├── subtotal: Money                                        │
+│  ├── categoryDiscount: Money                                │
+│  ├── volumeDiscount: Money                                  │
+│  ├── tax: Money                                             │
+│  ├── shipping: Money                                        │
+│  ├── commission: Money                                      │
+│  └── total: Money                                           │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## ⚠️ Оценка Рисков
+
+| Риск | Вероятность | Влияние | Приоритет |
+|------|-------------|---------|-----------|
+| **Баги при изменении логики скидок** | Высокая | Критическое | 🔴 HIGH |
+| **Невозможность тестирования** | Высокая | Высокое | 🔴 HIGH |
+| **Сложность добавления новых типов скидок** | Средняя | Высокое | 🟠 MEDIUM |
+| **Дублирование кода в других калькуляторах** | Средняя | Среднее | 🟠 MEDIUM |
+| **Нарушение работы при изменении порядка вызовов** | Высокая | Критическое | 🔴 HIGH |
+| **Невозможность повторного использования** | Высокая | Среднее | 🟠 MEDIUM |
+
+### Конкретные риски текущего кода:
+
+1. **Гонка состояний**: Если `calculateAndPrint` вызывается дважды с разными параметрами, `exportToString` вернёт некорректные данные.
+
+2. **Отсутствие валидации**: Нет проверки на null, отрицательные значения, пустую корзину.
+
+3. **Невозможность unit-тестирования**: Нельзя протестировать расчёт налогов отдельно от расчёта доставки.
+
+4. **Жесткая связка с консолью**: Невозможно использовать калькулятор в веб-интерфейсе без модификации.
+
+5. **Финансовые ошибки**: Округление `Double` может привести к потере копеек в финансовых расчётах.
+
+---
+
+## Автор
 - Студент: _Султанов Айнур Салаватович_
 - Группа: _ИУ3-61Б_
 - Вариант: 14
-- Дата: _24.03.2026_
+- Дата: _21.04.2026_
