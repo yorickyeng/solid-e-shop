@@ -13,4 +13,5 @@ internal data class ConsoleDependencies(
     val checkout: CheckoutUseCase,
     val getOrderHistory: GetOrderHistoryUseCase,
     val paymentStrategyFactory: PaymentStrategyFactory,
+    val calculator: GodDiscountCalculator,
 )

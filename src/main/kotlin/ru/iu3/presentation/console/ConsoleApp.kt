@@ -24,6 +24,7 @@ internal class ConsoleApp(
                 6 -> clearCart()
                 7 -> checkout()
                 8 -> showOrderHistory()
+                9 -> calculateEstimatedCost()
                 0 -> return
                 else -> println("Неизвестная команда")
             }
@@ -42,6 +43,7 @@ internal class ConsoleApp(
         println("6) Очистить корзину")
         println("7) Оформить заказ")
         println("8) История заказов")
+        println("9) Калькулятор стоимости")
         println("0) Выход")
     }
 
@@ -139,6 +141,11 @@ internal class ConsoleApp(
         orders.forEachIndexed { i, o ->
             println("${i + 1}) id=${o.id} status=${o.status} payment=${o.paymentMethod} total=${formatPrice(o.totalPrice)} items=${o.items.size}")
         }
+    }
+
+    private fun calculateEstimatedCost() = handle {
+        val paymentMethod = readPaymentStrategyName()
+        deps.calculator.calculateAndPrint(paymentMethod = paymentMethod)
     }
 
     private inline fun handle(block: () -> Unit) {
