@@ -1,21 +1,14 @@
-plugins {
-    kotlin("jvm") version "2.0.20"
+allprojects {
+    repositories {
+        mavenCentral()
+    }
 }
 
-group = "ru.iu3"
-version = "1.0-SNAPSHOT"
-
-repositories {
-    mavenCentral()
-}
-
-dependencies {
-    testImplementation(kotlin("test"))
-}
-
-tasks.test {
-    useJUnitPlatform()
-}
-kotlin {
-    jvmToolchain(17)
+subprojects {
+    apply(plugin = "java")
+    
+    configure<JavaPluginExtension> {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
 }
