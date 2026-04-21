@@ -1,206 +1,216 @@
-# Лабораторная работа №3 — Антипаттерны проектирования
+# Лабораторная работа 4: Базовый системный дизайн
 ## Дисциплина: «Моделирование и надежность систем»
 ### Вариант 14: Информационная система интернет‑магазина (консоль)
 
-## 🚨 Выявленные Антипаттерны
+## Разделение монолитного приложения на микросервисы с использованием gRPC
 
-### 1. **God Class (Божественный класс)**
-Класс нарушает **Single Responsibility Principle (SRP)**, выполняя 7 различных ответственностей:
+### Архитектура
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│          GodDiscountCalculator                          │
-├─────────────────────────────────────────────────────────┤
-│ 1. Хранение состояния расчёта (9 полей-переменных)      │
-│ 2. Получение данных из репозиториев                     │
-│ 3. Расчёт скидок по категориям товаров                  │
-│ 4. Расчёт объёмных скидок по порогу                     │
-│ 5. Расчёт налогов                                       │
-│ 6. Расчёт стоимости доставки                            │
-│ 7. Расчёт комиссий платежных методов                    │
-│ 8. Форматирование и вывод отчёта в консоль              │
-│ 9. Быстрая оценка стоимости (quickEstimate)             │
-│ 10. Экспорт в строку (exportToString)                   │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                        Client / Test                            │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ gRPC (port 50051)
+                              │ Trace ID в метаданных
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              Service A - Core Service                           │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  • Управление корзиной (Cart)                             │  │
+│  │  • Оформление заказов (Checkout)                          │  │
+│  │  • История заказов (Order History)                        │  │
+│  │  • Генерация Trace ID                                     │  │
+│  │  • Graceful degradation при недоступности Service B       │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              │ gRPC (port 50052)
+                              │ Trace ID в метаданных
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│           Service B - Reference Service                         │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  • Каталог товаров (Products Catalog)                     │  │
+│  │  • Категории (Categories)                                 │  │
+│  │  • Валидация товаров (Product Validation)                 │  │
+│  │  • Валидация цен (Price Validation)                       │  │
+│  │  • Логирование с Trace ID                                 │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### 2. **Feature Envy**
-Метод `calculateAndPrint` чрезмерно использует данные из `ProductRepository` и `CartRepository`, но логика принадлежит доменной области, а не презентации.
+## Структура проекта
 
-### 3. **Primitive Obsession**
-Использование примитивных типов (`Double`, `String`) вместо доменных объектов:
-```kotlin
-private val TAX_RATE = 0.13                    // Должно быть Money/TaxRate
-private val DISCOUNT_THRESHOLD_1 = 5000.0      // Должно быть Money
-private val SHIPPING_BASE = 300.0              // Должно быть Money
+```
+eshop/
+├── proto/                          # Proto-контракт и сгенерированный код
+│   ├── build.gradle.kts
+│   └── src/main/proto/
+│       └── shop.proto              # gRPC IDL контракт
+├── service-a-core/                 # Service A - Core Service
+│   ├── build.gradle.kts
+│   └── src/main/
+│       ├── kotlin/ru/iu3/servicea/
+│       │   ├── CoreServiceApplication.kt    # Точка входа
+│       │   ├── CoreServiceImpl.kt           # Бизнес-логика
+│       │   ├── ReferenceServiceClient.kt    # gRPC клиент к Service B
+│       │   ├── TraceIdInterceptor.kt        # Перехватчик Trace ID
+│       │   └── TestClient.kt                # Тестовый клиент
+│       └── resources/
+│           └── logback.xml                  # Конфигурация логирования
+├── service-b-reference/            # Service B - Reference Service
+│   ├── build.gradle.kts
+│   └── src/main/
+│       ├── kotlin/ru/iu3/serviceb/
+│       │   ├── ReferenceServiceApplication.kt  # Точка входа
+│       │   ├── ReferenceServiceImpl.kt         # Реализация сервиса
+│       │   └── TraceIdInterceptor.kt           # Перехватчик Trace ID
+│       └── resources/
+│           └── logback.xml                     # Конфигурация логирования
+└── README.md                       # Этот файл
 ```
 
-### 4. **Magic Numbers**
-Числовые литералы без пояснений:
-```kotlin
-private val TAX_RATE = 0.13           // Почему 13%?
-private val CARD_COMMISSION = 0.02    // Откуда 2%?
-private val WEIGHT_PER_ITEM = 0.5     // Почему 0.5 кг?
+## Быстрый старт
+
+### Локальный запуск через Gradle
+
+**Терминал 1 — Service B (справочник, запускать первым):**
+```bash
+./gradlew :service-b-reference:run
 ```
 
-### 5. **Data Clump**
-Группы связанных полей, которые должны быть объектом:
-```kotlin
-// Эти 7 полей должны быть классом CalculationResult:
-private var subtotal = 0.0
-private var categoryDiscount = 0.0
-private var volumeDiscount = 0.0
-private var tax = 0.0
-private var shipping = 0.0
-private var commission = 0.0
-private var finalTotal = 0.0
+**Терминал 2 — Service A (бизнес-логика):**
+```bash
+./gradlew :service-a-core:run
 ```
 
-### 6. **Temporal Coupling**
-Методы зависят от порядка вызова:
-```kotlin
-fun calculateAndPrint(paymentMethod: String) {  // Должен вызываться первым
-    // ... устанавливает все поля
-}
-
-fun exportToString(): String {  // Требует предварительного вызова calculateAndPrint
-    return "SUBTOTAL:${subtotal};..."  // Использует поля, установленные выше
-}
+**Терминал 3 — демонстрационный клиент:**
+```bash
+./gradlew :service-a-core:runTestClient
 ```
 
-### 7. **Inappropriate Intimacy**
-Класс знает слишком много о внутренней структуре `CartItem` и `Product`:
-```kotlin
-val cartItems = cart.getItems().map { cartItem ->
-    val product = productMap[cartItem.product.id] ?: cartItem.product
-    Pair(product, cartItem.amount)  // Прямой доступ к внутренностям
-}
-```
-
-### 8. **Switch Statements (When-выражения)**
-Длинные when-выражения, которые должны быть полиморфизмом:
-```kotlin
-val catDiscount = when (product.category) {
-    Category.SNOWBOARDS -> SNOWBOARDS_DISCOUNT
-    Category.BINDINGS -> BINDINGS_DISCOUNT
-    Category.BOOTS -> BOOTS_DISCOUNT
-    // ... 7 случаев
-}
-```
-
-### 9. **Hardcoded Values**
-Жестко закодированные значения конфигурации:
-```kotlin
-private val SNOWBOARDS_DISCOUNT = 0.10
-private val BINDINGS_DISCOUNT = 0.05
-private val BOOTS_DISCOUNT = 0.07
-// ... должны быть в конфигурации
-```
-
-### 10. **Mixed Concerns (Смешение ответственностей)**
-Класс находится в пакете `presentation.console`, но содержит бизнес-логику:
-```
-presentation.console.GodDiscountCalculator
-    ├── Репозитории (domain layer)
-    ├── Бизнес-правила расчёта (domain layer)
-    └── Вывод в консоль (presentation layer)
-```
-
-### 11. **Mutable State**
-Изменяемое состояние приводит к ошибкам:
-```kotlin
-private var subtotal = 0.0    // Может быть изменено
-private var tax = 0.0         // Зависит от порядка вызовов
-```
-
-### 12. **Poor Naming**
-- `GodDiscountCalculator` — имя само признаёт проблему
-- `calculateAndPrint` — нарушает Single Responsibility
-- `quickEstimate` — неясное назначение
+Клиент прогонит сценарий: добавление 3 товаров в корзину → просмотр корзины → оформление заказа → просмотр истории.
 
 ---
 
-## 📊 Метрики класса
+## Демонстрация сценариев
 
-| Метрика | Значение | Порог | Статус |
-|---------|----------|-------|--------|
-| Lines of Code (LOC) | 120 | < 50 | ❌ |
-| Number of Fields | 22 | < 10 | ❌ |
-| Number of Methods | 4 | < 5 | ⚠️ |
-| Coupling (CBO) | 2 репозитория + Category | < 3 | ⚠️ |
-| Responsibility Count | 7+ | < 3 | ❌ |
+### Сценарий 1 — штатный режим (оба сервиса работают)
 
----
-
-## 🛠️ Рекомендации по Рефакторингу
-
-### Стратегия разделения:
-
+Клиент:
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    После рефакторинга                       │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  DiscountCalculator (Domain Layer)                          │
-│  ├── calculateSubtotal(cart: Cart): Money                  │
-│  └── calculateDiscounts(cart: Cart): DiscountResult        │
-│                                                             │
-│  TaxCalculator (Domain Layer)                               │
-│  └── calculateTax(amount: Money): Money                    │
-│                                                             │
-│  ShippingCalculator (Domain Layer)                          │
-│  └── calculateShipping(cart: Cart): Money                  │
-│                                                             │
-│  PaymentCommissionStrategy (Domain Layer)                   │
-│  └── calculateCommission(amount: Money): Money             │
-│                                                             │
-│  DiscountPolicy (Domain Layer)                              │
-│  └── getCategoryDiscount(category: Category): Double       │
-│                                                             │
-│  ConsoleReportPrinter (Presentation Layer)                  │
-│  └── printReport(result: CalculationResult)                │
-│                                                             │
-│  CalculationResult (Value Object)                           │
-│  ├── subtotal: Money                                        │
-│  ├── categoryDiscount: Money                                │
-│  ├── volumeDiscount: Money                                  │
-│  ├── tax: Money                                             │
-│  ├── shipping: Money                                        │
-│  ├── commission: Money                                      │
-│  └── total: Money                                           │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+Результат: success=true, message=Товар 'Snowboard Nitro Prime' добавлен в корзину
+Корзина: 3 товаров, общая сумма: 71960.0
+Результат: success=true, message=Заказ <UUID> успешно оформлен
 ```
 
+Service A (фрагмент):
+```
+[grpc-default-executor-0] [<TRACE_ID>] INFO  CoreServiceImpl - addToCart: UserID=user-..., ProductID=p1, Quantity=1
+[grpc-default-executor-0] [<TRACE_ID>] DEBUG ReferenceServiceClient - getProductById: Товар p1 найден
+[grpc-default-executor-0] [<TRACE_ID>] INFO  CoreServiceImpl - Товар p1 добавлен в корзину пользователя user-...
+```
+
+Service B (тот же момент времени):
+```
+[grpc-default-executor-0] [<TRACE_ID>] INFO  ReferenceServiceImpl - getProductById: Запрос товара с ID=p1
+[grpc-default-executor-0] [<TRACE_ID>] INFO  ReferenceServiceImpl - getProductById: Товар найден: Snowboard Nitro Prime
+```
+
+**В обоих сервисах `<TRACE_ID>` одинаковый** — цепочка вызовов отслеживается сквозь сеть.
+
+### Сценарий 2 — Service B недоступен (graceful degradation)
+
+1. Остановить Service B (Ctrl+C в его терминале).
+2. Запустить `./gradlew :service-a-core:runTestClient`.
+
+Клиент получает понятные сообщения, **без исключений**:
+```
+Результат: success=false, message=Сервис каталога временно недоступен. Попробуйте позже.
+```
+
+Service A (лог одного запроса):
+```
+[<TRACE_ID>] INFO  CoreServiceImpl - addToCart: UserID=..., ProductID=p1
+[<TRACE_ID>] WARN  ReferenceServiceClient - Попытка 1/3 не удалась: UNAVAILABLE
+[<TRACE_ID>] INFO  ReferenceServiceClient - Retry через 100 мс...
+[<TRACE_ID>] WARN  ReferenceServiceClient - Попытка 2/3 не удалась: UNAVAILABLE
+[<TRACE_ID>] INFO  ReferenceServiceClient - Retry через 200 мс...
+[<TRACE_ID>] WARN  ReferenceServiceClient - Попытка 3/3 не удалась: UNAVAILABLE
+[<TRACE_ID>] ERROR CoreServiceImpl - Reference Service недоступен после 3 попыток
+```
+
+Service A **остаётся работоспособным**: операции, не требующие Service B (`getCart`, `getOrderHistory`), продолжают отвечать корректно.
+
 ---
 
-## ⚠️ Оценка Рисков
+## Proto-контракт
 
-| Риск | Вероятность | Влияние | Приоритет |
-|------|-------------|---------|-----------|
-| **Баги при изменении логики скидок** | Высокая | Критическое | 🔴 HIGH |
-| **Невозможность тестирования** | Высокая | Высокое | 🔴 HIGH |
-| **Сложность добавления новых типов скидок** | Средняя | Высокое | 🟠 MEDIUM |
-| **Дублирование кода в других калькуляторах** | Средняя | Среднее | 🟠 MEDIUM |
-| **Нарушение работы при изменении порядка вызовов** | Высокая | Критическое | 🔴 HIGH |
-| **Невозможность повторного использования** | Высокая | Среднее | 🟠 MEDIUM |
+Файл `proto/src/main/proto/shop.proto` определяет:
 
-### Конкретные риски текущего кода:
+### Service B - ReferenceService
+- `GetAllProducts()` - получить все товары
+- `GetProductById()` - получить товар по ID
+- `GetProductsByCategory()` - получить товары по категории
+- `GetAllCategories()` - получить все категории
+- `ValidateProductExists()` - валидировать существование товара
+- `ValidateProductPrice()` - валидировать цену товара
 
-1. **Гонка состояний**: Если `calculateAndPrint` вызывается дважды с разными параметрами, `exportToString` вернёт некорректные данные.
+### Service A - CoreService
+- `AddToCart()` - добавить товар в корзину
+- `GetCart()` - получить корзину
+- `RemoveFromCart()` - удалить товар из корзины
+- `ClearCart()` - очистить корзину
+- `Checkout()` - оформить заказ
+- `GetOrderHistory()` - получить историю заказов
 
-2. **Отсутствие валидации**: Нет проверки на null, отрицательные значения, пустую корзину.
+## Ключевые решения
 
-3. **Невозможность unit-тестирования**: Нельзя протестировать расчёт налогов отдельно от расчёта доставки.
+### 1. Trace ID и трассировка
 
-4. **Жесткая связка с консолью**: Невозможно использовать калькулятор в веб-интерфейсе без модификации.
+Trace ID генерируется на входе в Service A и передаётся через:
+- gRPC метаданные (ключ: `trace-id`)
+- MDC (Mapped Diagnostic Context) для логирования
 
-5. **Финансовые ошибки**: Округление `Double` может привести к потере копеек в финансовых расчётах.
+```kotlin
+// TraceIdInterceptor.kt
+class TraceIdInterceptor : ServerInterceptor {
+    override fun <ReqT, RespT> interceptCall(...) {
+        val traceId = UUID.randomUUID().toString()
+        MDC.put("traceId", traceId)
+        // Передаём в метаданных для следующих вызовов
+    }
+}
+```
 
----
+### 2. Обработка недоступности Service B
+
+ReferenceServiceClient реализует:
+- **Таймауты**: 5 секунд на каждый вызов
+- **Retry-логика**: до 3 попыток с экспоненциальной задержкой (100ms → 200ms → 400ms)
+- **Graceful degradation**: при недоступности возвращается понятное сообщение пользователю
+
+```kotlin
+catch (e: ReferenceServiceUnavailableException) {
+    logger.error("Reference Service недоступен. {}", e.message)
+    // Возвращаем пользователю понятное сообщение
+    return AddToCartResponse.newBuilder()
+        .setSuccess(false)
+        .setMessage("Сервис каталога временно недоступен. Попробуйте позже.")
+        .build()
+}
+```
+
+### 3. Структурированное логирование
+
+Logback конфигурация включает Trace ID в каждый лог:
+```
+%d{HH:mm:ss.SSS} [%thread] [%X{traceId}] %-5level %logger{36} - %msg%n
+```
 
 ## Автор
 - Студент: _Султанов Айнур Салаватович_
 - Группа: _ИУ3-61Б_
 - Вариант: 14
-- Дата: _21.04.2026_
+- Дата: _22.04.2026_
