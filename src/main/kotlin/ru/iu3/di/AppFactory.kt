@@ -18,6 +18,7 @@ import ru.iu3.infrastructure.repository.OrderRepositoryImpl
 import ru.iu3.infrastructure.repository.ProductRepositoryImpl
 import ru.iu3.infrastructure.seed.StaticProducts
 import ru.iu3.presentation.console.ConsoleDependencies
+import ru.iu3.presentation.console.GodDiscountCalculator
 
 internal object AppFactory {
 
@@ -36,6 +37,8 @@ internal object AppFactory {
         orderEventPublisher.subscribe(EmailOrderObserver())
         orderEventPublisher.subscribe(SmsOrderObserver())
 
+        val calculator = GodDiscountCalculator(productRepository, cartRepository)
+
         return ConsoleDependencies(
             getAllProducts = GetAllProductsUseCaseImpl(productRepository),
             getFilteredProducts = GetFilteredProductsUseCaseImpl(productRepository),
@@ -52,6 +55,7 @@ internal object AppFactory {
             ),
             getOrderHistory = GetOrderHistoryUseCaseImpl(orderRepository),
             paymentStrategyFactory = paymentStrategyFactory,
+            calculator = calculator,
         )
     }
 }
