@@ -38,6 +38,7 @@ class CoreServiceApplication(
             .forPort(port)
             .addService(coreServiceImpl)
             .intercept(TraceIdInterceptor())
+            .intercept(GrpcExceptionInterceptor())
             .build()
             .start()
 

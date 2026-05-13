@@ -28,6 +28,7 @@ class ReferenceServiceApplication(
             .forPort(port)
             .addService(referenceServiceImpl)
             .intercept(TraceIdInterceptor())
+            .intercept(GrpcExceptionInterceptor())
             .build()
             .start()
 
